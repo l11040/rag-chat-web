@@ -137,27 +137,36 @@ export function ChatMessage({ message }: ChatMessageProps) {
               })()}
 
               {/* Usage */}
-              {message.usage && (
-                <div className="mt-5 pt-5 border-t border-slate-700/50">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <span>💡</span>
-                      <span className="font-semibold uppercase tracking-wider">토큰 사용량</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-slate-500">
-                      <span className="text-xs">
-                        프롬프트: <span className="text-slate-400">{message.usage.promptTokens.toLocaleString()}</span>
-                      </span>
-                      <span className="text-xs">
-                        완성: <span className="text-slate-400">{message.usage.completionTokens.toLocaleString()}</span>
-                      </span>
-                      <span className="text-xs font-semibold">
-                        총: <span className="text-blue-400">{message.usage.totalTokens.toLocaleString()}</span>
-                      </span>
+              {message.usage && (() => {
+                // 비용 계산: 183,660 토큰 = 0.12 달러
+                const TOKENS_PER_DOLLAR = 183660 / 0.12; // 토큰당 달러 비용
+                const USD_TO_KRW = 1470; // 환율 (1달러 = 1,470원)
+                const costInUSD = message.usage.totalTokens / TOKENS_PER_DOLLAR;
+                const costInKRW = costInUSD * USD_TO_KRW;
+                
+                return (
+                  <div className="mt-5 pt-5 border-t border-slate-700/50">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <span>💡</span>
+                        <span className="font-semibold uppercase tracking-wider">토큰 사용량</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-slate-500">
+                        <span className="text-xs">
+                          프롬프트: <span className="text-slate-400">{message.usage.promptTokens.toLocaleString()}</span>
+                        </span>
+                        <span className="text-xs">
+                          완성: <span className="text-slate-400">{message.usage.completionTokens.toLocaleString()}</span>
+                        </span>
+                        <span className="text-xs font-semibold">
+                          총: <span className="text-blue-400">{message.usage.totalTokens.toLocaleString()}</span>
+                          <span className="text-green-400 ml-2">({costInKRW.toFixed(2)}원)</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
