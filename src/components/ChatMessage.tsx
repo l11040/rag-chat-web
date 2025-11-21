@@ -87,35 +87,54 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
 
               {/* Sources */}
-              {message.sources && message.sources.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-slate-700/50">
-                  <div className="text-xs font-semibold text-slate-400 uppercase mb-3 tracking-wider flex items-center gap-2">
-                    <span>📚</span>
-                    <span>관련 문서</span>
+              {message.sources && message.sources.length > 0 && (() => {
+                // 같은 문서(pageUrl) 중 유사도(score)가 가장 높은 것만 선택
+                const uniqueSources = message.sources.reduce((acc, source) => {
+                  const existing = acc.find(s => s.pageUrl === source.pageUrl);
+                  if (!existing || source.score > existing.score) {
+                    if (existing) {
+                      const index = acc.indexOf(existing);
+                      acc[index] = source;
+                    } else {
+                      acc.push(source);
+                    }
+                  }
+                  return acc;
+                }, [] as typeof message.sources);
+                
+                // 유사도 순으로 정렬
+                const sortedSources = [...uniqueSources].sort((a, b) => b.score - a.score);
+
+                return (
+                  <div className="mt-6 pt-6 border-t border-slate-700/50">
+                    <div className="text-xs font-semibold text-slate-400 uppercase mb-3 tracking-wider flex items-center gap-2">
+                      <span>📚</span>
+                      <span>관련 문서</span>
+                    </div>
+                    <div className="grid gap-2">
+                      {sortedSources.map((source, index) => (
+                        <a
+                          key={index}
+                          href={source.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center justify-between px-4 py-3 bg-slate-900/50 hover:bg-slate-800/70 rounded-lg border border-slate-700/50 hover:border-blue-500/50 transition-all duration-200"
+                        >
+                          <span className="text-blue-400 group-hover:text-blue-300 font-medium text-sm flex-1 truncate">
+                            {source.pageTitle}
+                          </span>
+                          <span className="text-xs text-slate-500 ml-3 flex-shrink-0">
+                            {(source.score * 100).toFixed(1)}%
+                          </span>
+                          <svg className="w-4 h-4 text-slate-500 ml-2 flex-shrink-0 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    {message.sources.map((source, index) => (
-                      <a
-                        key={index}
-                        href={source.pageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-center justify-between px-4 py-3 bg-slate-900/50 hover:bg-slate-800/70 rounded-lg border border-slate-700/50 hover:border-blue-500/50 transition-all duration-200"
-                      >
-                        <span className="text-blue-400 group-hover:text-blue-300 font-medium text-sm flex-1 truncate">
-                          {source.pageTitle}
-                        </span>
-                        <span className="text-xs text-slate-500 ml-3 flex-shrink-0">
-                          {(source.score * 100).toFixed(1)}%
-                        </span>
-                        <svg className="w-4 h-4 text-slate-500 ml-2 flex-shrink-0 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Usage */}
               {message.usage && (
