@@ -44,10 +44,17 @@ npm install
 
 ### 환경 변수 설정
 
-`.env` 파일을 생성하고 API 서버 URL을 설정하세요:
+`.env` 파일을 생성하고 다음 변수들을 설정하세요:
 
 ```bash
+# API Base URL
 VITE_API_BASE_URL=http://localhost:3001
+
+# OpenAPI Specification
+# NestJS의 경우 /api-json 엔드포인트 사용
+VITE_OPENAPI_SPEC_URL=http://localhost:3001/api-json
+# 또는 로컬 파일 사용:
+# VITE_OPENAPI_SPEC_PATH=./openapi.json
 ```
 
 `.env.example` 파일을 참고할 수 있습니다.
@@ -165,9 +172,47 @@ rag-chat-web/
 ## 🚀 개발 스크립트
 
 - `npm run dev` - 개발 서버 실행 (포트: 3008)
-- `npm run build` - 프로덕션 빌드
+- `npm run build` - 프로덕션 빌드 (API 자동 생성 포함)
 - `npm run preview` - 빌드 결과 미리보기
 - `npm run lint` - ESLint로 코드 검사
+- `npm run generate:api` - OpenAPI 스펙에서 TypeScript API 클라이언트 생성
+
+## 🔄 OpenAPI Generator 설정
+
+이 프로젝트는 OpenAPI Generator를 사용하여 API 클라이언트를 자동으로 생성합니다.
+
+### 설정 방법
+
+1. `.env` 파일에 OpenAPI 스펙 위치를 설정합니다:
+   - `VITE_OPENAPI_SPEC_URL`: OpenAPI 스펙의 URL (예: `http://localhost:3001/openapi.json`)
+   - 또는 `VITE_OPENAPI_SPEC_PATH`: 로컬 파일 경로 (예: `./openapi.json`)
+
+2. API 클라이언트 생성:
+   ```bash
+   npm run generate:api
+   ```
+
+3. 생성된 파일은 `src/api/generated` 디렉토리에 저장됩니다.
+
+### 자동 생성
+
+- `npm run build` 실행 시 자동으로 API가 생성됩니다.
+- API 스펙이 변경되면 `npm run generate:api`를 실행하여 업데이트하세요.
+
+### 생성된 API 사용
+
+생성된 API는 다음과 같이 사용할 수 있습니다:
+
+```typescript
+import { DefaultApi } from './api/generated/api';
+import { Configuration } from './api/generated';
+
+const config = new Configuration({
+  basePath: import.meta.env.VITE_API_BASE_URL,
+});
+
+const api = new DefaultApi(config);
+```
 
 ## 📝 라이선스
 

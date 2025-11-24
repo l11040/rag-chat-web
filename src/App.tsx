@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { queryRAG } from './api/rag';
+import { useRAGQueryMutation } from './api/rag';
 import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
 import type { Message } from './types/api';
@@ -8,8 +7,7 @@ import type { Message } from './types/api';
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const mutation = useMutation({
-    mutationFn: queryRAG,
+  const mutation = useRAGQueryMutation({
     onMutate: async (variables) => {
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -19,7 +17,7 @@ function App() {
       setMessages((prev) => [...prev, newMessage]);
       return newMessage;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, _variables, context) => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === context.id
@@ -36,7 +34,8 @@ function App() {
         )
       );
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
+      if (!context) return;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === context.id

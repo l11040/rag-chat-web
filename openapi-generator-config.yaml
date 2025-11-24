@@ -1,0 +1,26 @@
+generatorName: typescript-axios
+outputDir: src/api/generated
+additionalProperties:
+  npmName: rag-chat-api
+  npmVersion: 1.0.0
+  supportsES6: true
+  withInterfaces: true
+  enumPropertyNaming: original
+  stringEnums: true
+  modelPropertyNaming: original
+  useSingleRequestParameter: true
+  withSeparateModelsAndApi: true
+  apiPackage: api
+  modelPackage: models
+  typescriptThreePlus: true
+  removeOperationIdPrefix: true
+  enumUnknownDefaultCase: false
+  useObjectParameters: false
+  exportCore: true
+  exportServices: true
+  exportModels: true
+  exportSchemas: false
+  dateLibrary: standard
+  usePromise: true
+  supportsAsync: true
+  useESM: true
