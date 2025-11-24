@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { Chat } from './components/Chat';
+import { Admin } from './components/Admin';
 
 function App() {
   return (
@@ -18,6 +20,14 @@ function App() {
               <ProtectedRoute>
                 <Chat />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Admin />
+              </AdminRoute>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

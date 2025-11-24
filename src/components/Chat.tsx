@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRAGQueryMutation } from '../api/rag';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -7,7 +8,8 @@ import type { Message } from '../types/api';
 
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   const mutation = useRAGQueryMutation({
     onMutate: async (variables) => {
@@ -92,6 +94,14 @@ export function Chat() {
               <span className="text-slate-300 text-sm">
                 {user.email}
               </span>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+              >
+                관리자 페이지
+              </button>
             )}
             <button
               onClick={handleLogout}
