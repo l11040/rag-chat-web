@@ -12,6 +12,7 @@ export async function queryRAG(request: RAGQueryRequest): Promise<RAGQueryRespon
     // 생성된 타입으로 변환 (role을 enum으로 변환)
     const queryDto: QueryDto = {
       question: request.question,
+      conversationId: request.conversationId,
       conversationHistory: request.conversationHistory?.map((msg) => ({
         role: msg.role as GeneratedConversationMessage['role'],
         content: msg.content,

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
 import { Configuration } from './generated';
-import { RAGApi, DefaultApi, AppApi, NotionApi, OpenaiApi } from './generated';
+import { RAGApi, DefaultApi, AppApi, NotionApi, OpenaiApi, ConversationApi } from './generated';
 import type { RefreshTokenDto } from './generated/models';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -170,3 +170,4 @@ export const defaultApi = new DefaultApi(configuration, API_BASE_URL, axiosInsta
 export const appApi = new AppApi(configuration, API_BASE_URL, axiosInstance);
 export const notionApi = new NotionApi(configuration, API_BASE_URL, axiosInstance);
 export const openaiApi = new OpenaiApi(configuration, API_BASE_URL, axiosInstance);
+export const conversationApi = new ConversationApi(configuration, API_BASE_URL, axiosInstance);

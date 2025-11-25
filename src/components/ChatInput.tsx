@@ -17,7 +17,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   return (
-    <form className="w-full max-w-5xl mx-auto" onSubmit={handleSubmit}>
+    <form className="w-full" onSubmit={handleSubmit}>
       <div className="relative bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl shadow-xl p-4">
         <div className="flex gap-3 items-end">
           <div className="flex-1 relative">

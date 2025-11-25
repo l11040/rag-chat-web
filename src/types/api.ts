@@ -18,6 +18,7 @@ export interface ConversationMessage {
 
 export interface RAGQueryRequest {
   question: string;
+  conversationId?: string;
   conversationHistory?: ConversationMessage[];
 }
 
@@ -26,6 +27,7 @@ export interface RAGQueryResponse {
   answer: string;
   sources: Source[];
   question: string;
+  conversationId?: string;
   rewrittenQuery?: string;
   usage?: Usage;
   maxScore?: number;
