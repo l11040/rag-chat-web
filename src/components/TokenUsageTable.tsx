@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { TokenUsage } from '../api/tokenUsage';
 
 interface TokenUsageTableProps {
@@ -11,6 +12,17 @@ export function TokenUsageTable({
   pagination,
   onPaginationChange,
 }: TokenUsageTableProps) {
+  const navigate = useNavigate();
+
+  const handleConversationClick = (conversationId: string, messageId?: string) => {
+    console.log('🔗 대화 클릭:', { conversationId, messageId });
+    if (messageId) {
+      navigate(`/?conversation=${conversationId}&message=${messageId}`);
+    } else {
+      navigate(`/?conversation=${conversationId}`);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('ko-KR', {
@@ -72,9 +84,13 @@ export function TokenUsageTable({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono">
                       {usage.conversationId ? (
-                        <span className="text-blue-400">
+                        <button
+                          onClick={() => handleConversationClick(usage.conversationId!, usage.messageId)}
+                          className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors"
+                          title={usage.messageId ? "해당 메시지로 이동" : "대화로 이동"}
+                        >
                           {usage.conversationId.slice(0, 8)}...
-                        </span>
+                        </button>
                       ) : (
                         <span className="text-slate-500">-</span>
                       )}

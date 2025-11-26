@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRAGQueryMutation } from '../api/rag';
 import { useConversation } from '../api/conversations';
@@ -19,9 +19,12 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: conversation, isLoading: isLoadingConversation } = useConversation(conversationId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageIdFromUrl = searchParams.get('message');
+  const hasInitialScrolled = useRef(false);
 
   // 대화 변경 시 메시지 로드
   useEffect(() => {
@@ -49,6 +52,8 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
           const metadata = msg.metadata;
           currentUserMessage.answer = msg.content;
           currentUserMessage.isSuccess = true;
+          // assistant 메시지의 ID를 메시지 ID로 사용 (TokenUsage의 messageId와 매칭)
+          currentUserMessage.id = msg.id;
           if (metadata?.sources) {
             currentUserMessage.sources = metadata.sources;
           }
@@ -66,18 +71,99 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
       }
 
       setMessages(loadedMessages);
+      // 초기 스크롤 플래그 리셋
+      hasInitialScrolled.current = false;
     } else if (!conversationId) {
       // 새 대화인 경우 메시지 초기화
       setMessages([]);
+      hasInitialScrolled.current = false;
     }
-  }, [conversationId, conversation, currentConversationId]);
+  }, [conversationId, conversation, currentConversationId, searchParams]);
 
-  // 메시지가 변경될 때마다 맨 아래로 스크롤
+  // 1단계: 처음 메시지가 로드되면 즉시 맨 아래로 (애니메이션 없음)
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0 && !hasInitialScrolled.current && messagesEndRef.current) {
+      // 즉시 맨 아래로 스크롤 (애니메이션 없음)
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      hasInitialScrolled.current = true;
     }
-  }, [messages]);
+  }, [messages.length]);
+
+  // 2단계: message 파라미터가 있으면 해당 메시지로 이동 (초기 스크롤 후)
+  useEffect(() => {
+    if (messageIdFromUrl && messages.length > 0) {
+      console.log('🔍 메시지로 이동 시도:', {
+        messageIdFromUrl,
+        messagesCount: messages.length,
+        messageIds: messages.map(m => m.id)
+      });
+
+      // 초기 스크롤이 완료될 때까지 대기
+      const checkAndScroll = () => {
+        if (!hasInitialScrolled.current) {
+          setTimeout(checkAndScroll, 50);
+          return;
+        }
+
+        const scrollToMessage = () => {
+          const targetElement = document.getElementById(`message-${messageIdFromUrl}`);
+          console.log('🎯 스크롤 대상 요소 찾기:', {
+            messageIdFromUrl,
+            found: !!targetElement,
+            elementId: targetElement?.id
+          });
+          
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 하이라이트 효과를 위한 클래스 추가
+            targetElement.classList.add('ring-2', 'ring-blue-500');
+            setTimeout(() => {
+              targetElement.classList.remove('ring-2', 'ring-blue-500');
+            }, 2000);
+            console.log('✅ 메시지로 스크롤 완료');
+            return true;
+          }
+          return false;
+        };
+
+        // 즉시 시도
+        if (!scrollToMessage()) {
+          // 요소가 아직 없으면 재시도 (최대 20번, 200ms 간격)
+          let retryCount = 0;
+          const maxRetries = 20;
+          const retryInterval = setInterval(() => {
+            retryCount++;
+            const found = scrollToMessage();
+            if (found || retryCount >= maxRetries) {
+              if (!found && retryCount >= maxRetries) {
+                console.warn('⚠️ 메시지를 찾을 수 없습니다:', messageIdFromUrl);
+              }
+              clearInterval(retryInterval);
+            }
+          }, 200);
+        }
+      };
+
+      checkAndScroll();
+    }
+  }, [messageIdFromUrl, messages.length]);
+
+  // 메시지가 변경될 때마다 맨 아래로 스크롤 (message 파라미터가 없고, 초기 스크롤 이후)
+  useEffect(() => {
+    // message 파라미터가 있거나 아직 초기 스크롤이 안 되었으면 자동 스크롤하지 않음
+    if (messageIdFromUrl || !hasInitialScrolled.current) {
+      return;
+    }
+
+    if (messages.length > 0 && messagesEndRef.current) {
+      // 약간의 지연을 두어 DOM 업데이트 후 스크롤
+      setTimeout(() => {
+        if (messagesEndRef.current && !messageIdFromUrl) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 50);
+    }
+  }, [messages, messageIdFromUrl]);
 
   const mutation = useRAGQueryMutation({
     onMutate: async (variables) => {
@@ -87,6 +173,14 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
         isLoading: true,
       };
       setMessages((prev) => [...prev, newMessage]);
+      // URL에서 message 파라미터 제거 (새 메시지 전송 시)
+      if (messageIdFromUrl) {
+        setSearchParams((prev) => {
+          const newParams = new URLSearchParams(prev);
+          newParams.delete('message');
+          return newParams;
+        });
+      }
       return newMessage;
     },
     onSuccess: (data, _variables, context) => {
@@ -117,6 +211,14 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
             : msg
         )
       );
+      // 답변 완료 후 맨 아래로 스크롤 (message 파라미터가 없을 때만)
+      if (!searchParams.get('message')) {
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      }
     },
     onError: (error, _variables, context) => {
       if (!context) return;

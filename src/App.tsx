@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
@@ -11,20 +11,41 @@ import { Management } from './components/Management';
 import { ConversationSidebar } from './components/ConversationSidebar';
 
 function ChatLayout() {
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const conversationIdFromUrl = searchParams.get('conversation');
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(conversationIdFromUrl);
+
+  // URL의 conversation 파라미터가 변경되면 상태 업데이트
+  useEffect(() => {
+    setSelectedConversationId(conversationIdFromUrl);
+  }, [conversationIdFromUrl]);
+
+  const handleSelectConversation = (id: string | null) => {
+    setSelectedConversationId(id);
+    if (id) {
+      setSearchParams({ conversation: id });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  const handleConversationCreated = (id: string) => {
+    setSelectedConversationId(id);
+    setSearchParams({ conversation: id });
+  };
 
   return (
     <>
       <div className="fixed left-0 top-0 w-64 h-screen z-20">
         <ConversationSidebar
           selectedConversationId={selectedConversationId}
-          onSelectConversation={setSelectedConversationId}
+          onSelectConversation={handleSelectConversation}
         />
       </div>
       <div className="ml-64">
         <Chat 
           conversationId={selectedConversationId} 
-          onConversationCreated={setSelectedConversationId}
+          onConversationCreated={handleConversationCreated}
         />
       </div>
     </>

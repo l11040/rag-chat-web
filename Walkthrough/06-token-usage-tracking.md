@@ -11,7 +11,7 @@
 5. [Chat 컴포넌트에 관리 버튼 추가](#chat-컴포넌트에-관리-버튼-추가)
 6. [토큰 사용량 조회 UI](#토큰-사용량-조회-ui)
 7. [D3.js 차트 구현](#d3js-차트-구현)
-8. [라우팅 설정](#라우팅-설정)
+8. [라우팅 및 네비게이션](#라우팅-및-네비게이션)
 9. [사용 방법](#사용-방법)
 
 ## 개요
@@ -21,9 +21,11 @@
 - **통계 조회**: 총 프롬프트 토큰, 완성 토큰, 전체 토큰 수, 사용 횟수, 평균 토큰 수
 - **목록 조회**: 페이지네이션을 지원하는 토큰 사용 내역 목록
 - **대화별 조회**: 특정 대화에서 사용된 토큰 사용량 조회
+- **메시지별 조회**: 특정 메시지에서 사용된 토큰 사용량 조회
 - **기간별 조회**: 지정한 날짜 범위의 토큰 사용량 조회
 - **시각화**: D3.js를 사용한 바 차트 및 라인 차트
 - **자동 저장**: `POST /rag/query` 시 토큰 사용량이 자동으로 저장됨
+- **네비게이션**: 토큰 사용량 테이블에서 대화/메시지로 직접 이동
 
 ## API 엔드포인트
 
@@ -78,12 +80,30 @@
     "id": "uuid",
     "userId": "uuid",
     "conversationId": "uuid",
+    "messageId": "uuid",
     "promptTokens": 1500,
     "completionTokens": 200,
     "totalTokens": 1700,
     "createdAt": "2025-01-15T10:30:00.000Z"
   }
 ]
+```
+
+#### `GET /token-usage/message/:messageId`
+특정 메시지에서 사용된 토큰 사용량을 조회합니다.
+
+**응답:**
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "conversationId": "uuid",
+  "messageId": "uuid",
+  "promptTokens": 1500,
+  "completionTokens": 200,
+  "totalTokens": 1700,
+  "createdAt": "2025-01-15T10:30:00.000Z"
+}
 ```
 
 #### `GET /token-usage/date-range`
@@ -100,6 +120,7 @@
     "id": "uuid",
     "userId": "uuid",
     "conversationId": "uuid",
+    "messageId": "uuid",
     "promptTokens": 1500,
     "completionTokens": 200,
     "totalTokens": 1700,
@@ -114,6 +135,7 @@
 질문에 대한 답변 생성 시 토큰 사용량이 자동으로 저장됩니다.
 
 각 질문마다 프롬프트 토큰, 완성 토큰, 총 토큰 수가 데이터베이스에 기록됩니다.
+답변 메시지 저장 후 반환된 메시지 ID가 토큰 사용량 저장 시 포함되어, 각 질문의 토큰 사용량이 해당 메시지와 1:1로 연결되어 추적 가능합니다.
 
 ## 토큰 사용량 API 클라이언트
 
@@ -128,11 +150,13 @@ export interface TokenUsage {
   id: string;
   userId: string;
   conversationId?: string;
+  messageId?: string;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
   createdAt: string;
 }
+```
 
 export interface TokenUsageStats {
   totalPromptTokens: number;
@@ -164,6 +188,9 @@ export async function getTokenUsageStats(): Promise<TokenUsageStats>
 
 // 특정 대화의 토큰 사용량 조회
 export async function getTokenUsageByConversation(conversationId: string): Promise<TokenUsage[]>
+
+// 특정 메시지의 토큰 사용량 조회
+export async function getTokenUsageByMessage(messageId: string): Promise<TokenUsage | null>
 
 // 날짜 범위별 토큰 사용량 조회
 export async function getTokenUsageByDateRange(params: TokenUsageDateRangeParams): Promise<TokenUsage[]>
@@ -312,6 +339,7 @@ const { data: dateRangeData, isLoading: dateRangeLoading } = useQuery({
 - 날짜, 대화 ID, 프롬프트 토큰, 완성 토큰, 총 토큰 표시
 - 페이지네이션 지원 (선택사항)
 - 한국 시간대(KST)로 날짜 포맷팅
+- **대화 ID 클릭 시 해당 대화/메시지로 이동**: `messageId`가 있으면 해당 메시지로, 없으면 대화로 이동
 
 #### 구현
 
@@ -321,6 +349,15 @@ interface TokenUsageTableProps {
   pagination?: { limit: number; offset: number };
   onPaginationChange?: (pagination: { limit: number; offset: number }) => void;
 }
+
+// 대화 ID 클릭 핸들러
+const handleConversationClick = (conversationId: string, messageId?: string) => {
+  if (messageId) {
+    navigate(`/?conversation=${conversationId}&message=${messageId}`);
+  } else {
+    navigate(`/?conversation=${conversationId}`);
+  }
+};
 ```
 
 ## D3.js 차트 구현
@@ -368,13 +405,13 @@ npm install d3 @types/d3
 - `curveMonotoneX`를 사용한 부드러운 곡선
 - 그라데이션 라인 (보라색에서 파란색으로 변화)
 
-## 라우팅 설정
+## 라우팅 및 네비게이션
 
 ### 파일: `src/App.tsx`
 
-관리 페이지 라우트를 추가합니다.
+관리 페이지 라우트를 추가하고, URL searchParam을 통한 대화/메시지 네비게이션을 구현합니다.
 
-#### 변경 사항
+#### 라우트 추가
 
 ```typescript
 import { Management } from './components/Management';
@@ -391,6 +428,113 @@ import { Management } from './components/Management';
 ```
 
 모든 인증된 사용자가 접근할 수 있도록 `ProtectedRoute`로만 보호합니다 (관리자 권한 불필요).
+
+#### URL SearchParam을 통한 네비게이션
+
+```typescript
+function ChatLayout() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const conversationIdFromUrl = searchParams.get('conversation');
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(conversationIdFromUrl);
+
+  // URL의 conversation 파라미터가 변경되면 상태 업데이트
+  useEffect(() => {
+    setSelectedConversationId(conversationIdFromUrl);
+  }, [conversationIdFromUrl]);
+
+  const handleSelectConversation = (id: string | null) => {
+    setSelectedConversationId(id);
+    if (id) {
+      setSearchParams({ conversation: id });
+    } else {
+      setSearchParams({});
+    }
+  };
+}
+```
+
+### 파일: `src/components/Chat.tsx`
+
+#### 메시지 ID 매칭
+
+Chat 컴포넌트에서 대화를 로드할 때, assistant 메시지의 ID를 메시지 ID로 사용합니다:
+
+```typescript
+conversation.messages.forEach((msg) => {
+  if (msg.role === 'user') {
+    currentUserMessage = {
+      id: msg.id,
+      question: msg.content,
+      isLoading: false,
+    };
+  } else if (msg.role === 'assistant' && currentUserMessage) {
+    // assistant 메시지의 ID를 메시지 ID로 사용 (TokenUsage의 messageId와 매칭)
+    currentUserMessage.id = msg.id;
+    currentUserMessage.answer = msg.content;
+    // ...
+  }
+});
+```
+
+#### 자동 스크롤 로직
+
+1. **초기 로드**: 메시지가 처음 로드되면 즉시 맨 아래로 스크롤 (애니메이션 없음)
+2. **메시지로 이동**: URL에 `message` 파라미터가 있으면 해당 메시지로 부드럽게 스크롤
+3. **새 메시지**: 채팅 전송 시 항상 맨 아래로 스크롤
+
+```typescript
+// 1단계: 처음 메시지가 로드되면 즉시 맨 아래로 (애니메이션 없음)
+useEffect(() => {
+  if (messages.length > 0 && !hasInitialScrolled.current && messagesEndRef.current) {
+    messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    hasInitialScrolled.current = true;
+  }
+}, [messages.length]);
+
+// 2단계: message 파라미터가 있으면 해당 메시지로 이동
+useEffect(() => {
+  if (messageIdFromUrl && messages.length > 0) {
+    const targetElement = document.getElementById(`message-${messageIdFromUrl}`);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 하이라이트 효과
+      targetElement.classList.add('ring-2', 'ring-blue-500');
+      setTimeout(() => {
+        targetElement.classList.remove('ring-2', 'ring-blue-500');
+      }, 2000);
+    }
+  }
+}, [messageIdFromUrl, messages.length]);
+```
+
+### 파일: `src/components/ChatMessage.tsx`
+
+#### 메시지 클릭 시 URL 업데이트
+
+각 메시지를 클릭하면 URL에 메시지 ID가 추가되어 해당 메시지로 이동할 수 있습니다:
+
+```typescript
+const handleMessageClick = () => {
+  const conversationId = searchParams.get('conversation');
+  const params = new URLSearchParams();
+  if (conversationId) {
+    params.set('conversation', conversationId);
+  }
+  params.set('message', message.id);
+  navigate(`/?${params.toString()}`);
+};
+
+// 메시지에 고유 ID 부여
+<div 
+  id={`message-${message.id}`}
+  onClick={handleMessageClick}
+  className="... cursor-pointer hover:border-blue-500/50"
+>
+```
+
+### 파일: `src/components/ConversationSidebar.tsx`
+
+사이드바에서 대화를 클릭하면 URL이 `/?conversation={id}`로 변경됩니다.
 
 ## 사용 방법
 
@@ -412,6 +556,9 @@ import { Management } from './components/Management';
 1. "목록" 탭을 클릭합니다
 2. 페이지네이션을 사용하여 토큰 사용 내역을 확인합니다
 3. 각 내역의 날짜, 대화 ID, 프롬프트 토큰, 완성 토큰, 총 토큰을 확인합니다
+4. **대화 ID를 클릭하면 해당 대화로 이동합니다**:
+   - `messageId`가 있는 경우: 해당 메시지로 자동 스크롤
+   - `messageId`가 없는 경우: 대화의 맨 아래로 이동
 
 ### 4. 기간별 토큰 사용량 조회
 
@@ -426,6 +573,21 @@ import { Management } from './components/Management';
 
 - `POST /rag/query` API를 호출할 때마다 토큰 사용량이 자동으로 저장됩니다
 - 저장된 데이터는 위의 방법으로 조회할 수 있습니다
+- 각 토큰 사용량은 해당 메시지와 1:1로 연결되어 추적 가능합니다
+
+### 6. 대화/메시지 네비게이션
+
+1. **토큰 사용량 테이블에서**:
+   - 대화 ID를 클릭하면 해당 대화로 이동합니다
+   - `messageId`가 있으면 해당 메시지로 자동 스크롤됩니다
+
+2. **채팅 메시지에서**:
+   - 메시지를 클릭하면 URL에 메시지 ID가 추가됩니다
+   - URL을 공유하면 특정 메시지로 바로 이동할 수 있습니다
+
+3. **사이드바에서**:
+   - 대화를 클릭하면 URL이 `/?conversation={id}`로 변경됩니다
+   - URL을 새로고침해도 선택한 대화가 유지됩니다
 
 ## 주요 특징
 
@@ -451,6 +613,13 @@ import { Management } from './components/Management';
 - 다양한 응답 구조를 안전하게 처리
 - 에러 처리 및 로딩 상태 관리
 - 빈 데이터 처리
+
+### 5. 메시지 추적 및 네비게이션
+
+- 각 토큰 사용량이 특정 메시지와 1:1로 연결되어 추적 가능
+- 토큰 사용량 테이블에서 직접 대화/메시지로 이동
+- URL searchParam을 통한 상태 관리로 새로고침 시에도 선택 유지
+- 메시지 클릭 시 URL 업데이트로 공유 가능한 링크 생성
 
 ## 다음 단계
 

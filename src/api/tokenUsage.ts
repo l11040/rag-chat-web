@@ -4,6 +4,7 @@ export interface TokenUsage {
   id: string;
   userId: string;
   conversationId?: string;
+  messageId?: string;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -126,5 +127,18 @@ export async function getTokenUsageByDateRange(params: TokenUsageDateRangeParams
   
   // 배열이 아닌 경우 빈 배열 반환
   return [];
+}
+
+// 특정 메시지의 토큰 사용량 조회
+export async function getTokenUsageByMessage(messageId: string): Promise<TokenUsage | null> {
+  const response = await axiosInstance.get(`/token-usage/message/${messageId}`);
+  const data = response.data;
+  
+  // 응답이 객체로 직접 오거나, data 속성 안에 있을 수 있음
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data?.data || data;
+  }
+  
+  return null;
 }
 

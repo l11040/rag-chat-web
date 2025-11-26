@@ -1,3 +1,4 @@
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Message } from '../types/api';
@@ -7,8 +8,26 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const handleMessageClick = () => {
+    const conversationId = searchParams.get('conversation');
+    const params = new URLSearchParams();
+    if (conversationId) {
+      params.set('conversation', conversationId);
+    }
+    params.set('message', message.id);
+    navigate(`/?${params.toString()}`);
+  };
+
   return (
-    <div className="bg-slate-800/40 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden">
+    <div 
+      id={`message-${message.id}`}
+      onClick={handleMessageClick}
+      className="bg-slate-800/40 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden cursor-pointer hover:border-blue-500/50 hover:shadow-blue-500/20 transition-all duration-200"
+      title="클릭하여 이 메시지로 링크 복사"
+    >
       {/* Question Section */}
       <div className="px-6 py-5 bg-gradient-to-r from-slate-800/60 to-slate-800/40 border-b border-slate-700/50">
         <div className="flex items-start gap-3">
@@ -118,6 +137,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                           href={source.pageUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="group flex items-center justify-between px-4 py-3 bg-slate-900/50 hover:bg-slate-800/70 rounded-lg border border-slate-700/50 hover:border-blue-500/50 transition-all duration-200"
                         >
                           <span className="text-blue-400 group-hover:text-blue-300 font-medium text-sm flex-1 truncate">
