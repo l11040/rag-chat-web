@@ -29,7 +29,7 @@ const processQueue = (error: AxiosError | null, token: string | null = null) => 
 };
 
 // Axios 인스턴스 생성
-const axiosInstance: AxiosInstance = axios.create({
+export const axiosInstance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {

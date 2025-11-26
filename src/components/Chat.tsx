@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRAGQueryMutation } from '../api/rag';
@@ -20,6 +20,8 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: conversation, isLoading: isLoadingConversation } = useConversation(conversationId);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // 대화 변경 시 메시지 로드
   useEffect(() => {
@@ -69,6 +71,13 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
       setMessages([]);
     }
   }, [conversationId, conversation, currentConversationId]);
+
+  // 메시지가 변경될 때마다 맨 아래로 스크롤
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const mutation = useRAGQueryMutation({
     onMutate: async (variables) => {
@@ -171,6 +180,31 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
                 {user.email}
               </span>
             )}
+            <button
+              onClick={() => navigate('/management')}
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition"
+              title="관리 페이지"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
             {isAdmin && (
               <button
                 onClick={() => navigate('/admin')}
@@ -207,10 +241,11 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div ref={messagesContainerRef} className="space-y-6">
                 {messages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
+                <div ref={messagesEndRef} />
               </div>
             )}
           </>

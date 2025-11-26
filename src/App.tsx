@@ -7,6 +7,7 @@ import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { Chat } from './components/Chat';
 import { Admin } from './components/Admin';
+import { Management } from './components/Management';
 import { ConversationSidebar } from './components/ConversationSidebar';
 
 function ChatLayout() {
@@ -51,6 +52,14 @@ function App() {
               <AdminRoute>
                 <Admin />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/management"
+            element={
+              <ProtectedRoute>
+                <Management />
+              </ProtectedRoute>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

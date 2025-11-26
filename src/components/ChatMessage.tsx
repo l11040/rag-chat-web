@@ -15,9 +15,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center mt-0.5">
             <span className="text-blue-400 text-sm">Q</span>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-slate-400 uppercase mb-2 tracking-wider">질문</div>
-            <div className="text-slate-100 leading-relaxed font-medium">{message.question}</div>
+            <div className="text-slate-100 leading-relaxed font-medium break-words">{message.question}</div>
           </div>
         </div>
       </div>
@@ -29,7 +29,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center mt-0.5">
               <span className="text-purple-400 text-sm">A</span>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-slate-400 uppercase mb-3 tracking-wider">답변</div>
               <div className="flex items-center gap-2 text-slate-400">
                 <div className="flex gap-1">
@@ -48,9 +48,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center mt-0.5">
               <span className="text-red-400 text-sm">!</span>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-red-400 uppercase mb-2 tracking-wider">오류</div>
-              <div className="text-red-300 leading-relaxed">{message.error}</div>
+              <div className="text-red-300 leading-relaxed break-words">{message.error}</div>
             </div>
           </div>
         )}
@@ -68,7 +68,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   : 'text-purple-400'
               }`}>A</span>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className={`text-xs font-semibold uppercase mb-4 tracking-wider ${
                 message.isSuccess === false 
                   ? 'text-amber-400' 
