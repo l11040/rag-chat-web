@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { defaultApi, ragApi } from '../api/client';
-import { UpdateUserDtoRoleEnum, type UpdateUserDto, type UpdatePageDto, type UpdatePagesDto } from '../api/generated/models';
+import { defaultApi, ragApi, swaggerApi } from '../api/client';
+import { UpdateUserDtoRoleEnum, type UpdateUserDto, type UpdatePageDto, type UpdatePagesDto, type UploadSwaggerDto } from '../api/generated/models';
 
 interface User {
   id: string;
@@ -28,7 +28,17 @@ interface NotionPage {
   [key: string]: any; // 추가 필드 허용
 }
 
-type TabType = 'users' | 'notion';
+type TabType = 'users' | 'notion' | 'swagger';
+
+interface SwaggerDocument {
+  id: string;
+  key: string;
+  swaggerUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+  apiCount?: number;
+  [key: string]: any;
+}
 
 // 날짜를 한국 시간(KST)으로 변환하는 함수
 const formatToKST = (dateValue: string | undefined): string => {
@@ -106,11 +116,23 @@ export function Admin() {
     count?: number;
   } | null>(null);
 
+  // Swagger 관리 상태
+  const [swaggerDocuments, setSwaggerDocuments] = useState<SwaggerDocument[]>([]);
+  const [swaggerLoading, setSwaggerLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [uploadForm, setUploadForm] = useState<UploadSwaggerDto>({
+    key: '',
+    swaggerUrl: '',
+  });
+
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
     } else if (activeTab === 'notion') {
       fetchPages();
+    } else if (activeTab === 'swagger') {
+      fetchSwaggerDocuments();
     }
   }, [activeTab]);
 
@@ -395,6 +417,100 @@ export function Admin() {
     }
   };
 
+  // Swagger 관리 함수들
+  const fetchSwaggerDocuments = async () => {
+    try {
+      setSwaggerLoading(true);
+      setError(null);
+      const response = await swaggerApi.getSwaggerDocuments();
+      
+      const data = (response.data as any);
+      let documentList: SwaggerDocument[] = [];
+      
+      if (data && data.success && Array.isArray(data.documents)) {
+        documentList = data.documents;
+      } else if (Array.isArray(data)) {
+        documentList = data;
+      } else if (data && Array.isArray(data.data)) {
+        documentList = data.data;
+      }
+      
+      setSwaggerDocuments(documentList);
+    } catch (err: any) {
+      console.error('Swagger 문서 목록 가져오기 실패:', err);
+      setError(err.response?.data?.message || 'Swagger 문서 목록을 가져오는데 실패했습니다.');
+    } finally {
+      setSwaggerLoading(false);
+    }
+  };
+
+  const handleUploadSwagger = async () => {
+    if (!uploadForm.key || !uploadForm.swaggerUrl) {
+      setError('키와 Swagger URL을 모두 입력해주세요.');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError(null);
+      await swaggerApi.uploadSwaggerDocument({
+        uploadSwaggerDto: uploadForm,
+      });
+      
+      setUploadForm({ key: '', swaggerUrl: '' });
+      await fetchSwaggerDocuments();
+      
+      setUpdateResult({
+        show: true,
+        success: true,
+        message: 'Swagger 문서가 성공적으로 업로드되었습니다.',
+      });
+    } catch (err: any) {
+      console.error('Swagger 문서 업로드 실패:', err);
+      const errorMessage = err.response?.data?.message || 'Swagger 문서 업로드에 실패했습니다.';
+      setError(errorMessage);
+      
+      setUpdateResult({
+        show: true,
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteSwagger = async (id: string) => {
+    if (!confirm('이 Swagger 문서를 삭제하시겠습니까? 관련된 모든 벡터 데이터가 삭제됩니다.')) {
+      return;
+    }
+
+    try {
+      setDeleting(id);
+      setError(null);
+      await swaggerApi.deleteSwaggerDocument({ id });
+      await fetchSwaggerDocuments();
+      
+      setUpdateResult({
+        show: true,
+        success: true,
+        message: 'Swagger 문서가 성공적으로 삭제되었습니다.',
+      });
+    } catch (err: any) {
+      console.error('Swagger 문서 삭제 실패:', err);
+      const errorMessage = err.response?.data?.message || 'Swagger 문서 삭제에 실패했습니다.';
+      setError(errorMessage);
+      
+      setUpdateResult({
+        show: true,
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <div className="container mx-auto px-4 py-8">
@@ -446,6 +562,16 @@ export function Admin() {
               }`}
             >
               노션 관리
+            </button>
+            <button
+              onClick={() => setActiveTab('swagger')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'swagger'
+                  ? 'text-blue-400 border-b-2 border-blue-400'
+                  : 'text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              Swagger 관리
             </button>
           </div>
         </div>
@@ -738,6 +864,165 @@ export function Admin() {
                         </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Swagger 관리 탭 */}
+        {activeTab === 'swagger' && (
+          <div className="space-y-6">
+            {/* 업로드 액션 영역 */}
+            <div className="bg-slate-800 rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold mb-4">Swagger 문서 업로드</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    문서 키 (영어, 숫자, 소문자, 언더스코어만 허용)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadForm.key}
+                    onChange={(e) =>
+                      setUploadForm({ ...uploadForm, key: e.target.value })
+                    }
+                    placeholder="예: my-api-docs"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    같은 키가 이미 존재하면 기존 데이터를 삭제하고 재업로드됩니다.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Swagger JSON URL
+                  </label>
+                  <input
+                    type="url"
+                    value={uploadForm.swaggerUrl}
+                    onChange={(e) =>
+                      setUploadForm({ ...uploadForm, swaggerUrl: e.target.value })
+                    }
+                    placeholder="예: http://localhost:3001/api-json"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    Swagger JSON 형식의 OpenAPI 스펙 URL을 입력하세요.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleUploadSwagger}
+                    disabled={uploading || !uploadForm.key || !uploadForm.swaggerUrl}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    {uploading ? '업로드 중...' : 'Swagger 문서 업로드'}
+                  </button>
+                  <button
+                    onClick={fetchSwaggerDocuments}
+                    disabled={swaggerLoading || uploading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    {swaggerLoading ? '로딩 중...' : '목록 새로고침'}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">
+                  💡 Swagger 문서를 업로드하면 API 정보가 벡터 DB에 저장되어 RAG 검색에 활용됩니다.
+                </p>
+              </div>
+            </div>
+
+            {/* Swagger 문서 목록 */}
+            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+              <div className="p-6 border-b border-slate-700">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Swagger 문서 목록</h2>
+                  {swaggerDocuments.length > 0 && (
+                    <span className="text-sm text-slate-400">
+                      총 {swaggerDocuments.length}개
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {swaggerLoading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-slate-400">로딩 중...</p>
+                </div>
+              ) : swaggerDocuments.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <p className="mb-2">업로드된 Swagger 문서가 없습니다.</p>
+                  <p className="text-sm">위의 폼을 사용하여 Swagger 문서를 업로드하세요.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          문서 ID
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          키
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          Swagger URL
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          API 개수
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          생성일
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                          작업
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {swaggerDocuments.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-slate-700/50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-400">
+                            {doc.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                            {doc.key}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <a
+                              href={doc.swaggerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors break-all"
+                            >
+                              {doc.swaggerUrl}
+                            </a>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                            {doc.apiCount !== undefined ? doc.apiCount : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                            {formatToKST(doc.createdAt)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => handleDeleteSwagger(doc.id)}
+                              disabled={deleting === doc.id}
+                              className="text-red-400 hover:text-red-300 disabled:text-slate-600 transition-colors"
+                              title="이 Swagger 문서를 삭제합니다. 관련된 모든 벡터 데이터가 삭제됩니다."
+                            >
+                              {deleting === doc.id ? '삭제 중...' : '삭제'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
