@@ -96,33 +96,35 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       const codeString = String(children).replace(/\n$/, '');
                       
                       return !inline && (match || codeString.length > 50) ? (
-                        <div className="code-block-wrapper">
-                          <SyntaxHighlighter
-                            language={language || 'text'}
-                            style={vscDarkPlus}
-                            customStyle={{
-                              margin: 0,
-                              padding: 0,
-                              background: 'transparent',
-                              fontSize: '0.875rem',
-                              lineHeight: '1.6',
-                              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-                              border: 'none',
-                              borderRadius: 0,
-                              boxShadow: 'none',
-                            }}
-                            PreTag="div"
-                            showLineNumbers={codeString.split('\n').length > 5}
-                            lineNumberStyle={{
-                              minWidth: '3em',
-                              paddingRight: '1em',
-                              color: 'rgba(148, 163, 184, 0.5)',
-                              userSelect: 'none',
-                            }}
-                            {...props}
-                          >
-                            {codeString}
-                          </SyntaxHighlighter>
+                        <div className="code-block-container">
+                          <div className="code-block-wrapper">
+                            <SyntaxHighlighter
+                              language={language || 'text'}
+                              style={vscDarkPlus}
+                              customStyle={{
+                                margin: 0,
+                                padding: '1rem',
+                                background: 'transparent',
+                                fontSize: '0.875rem',
+                                lineHeight: '1.6',
+                                fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+                                border: 'none',
+                                borderRadius: 0,
+                                boxShadow: 'none',
+                              }}
+                              PreTag="div"
+                              showLineNumbers={codeString.split('\n').length > 5}
+                              lineNumberStyle={{
+                                minWidth: '3em',
+                                paddingRight: '1em',
+                                color: 'rgba(148, 163, 184, 0.5)',
+                                userSelect: 'none',
+                              }}
+                              {...props}
+                            >
+                              {codeString}
+                            </SyntaxHighlighter>
+                          </div>
                         </div>
                       ) : (
                         <code

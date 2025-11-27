@@ -110,6 +110,20 @@
     @apply my-2;
   }
 
+  /* 리스트 내부 코드 블록 처리 */
+  .markdown-content li > pre,
+  .markdown-content li .code-block-container {
+    @apply my-3;
+    margin-left: 0;
+  }
+
+  /* 인용문 내부 코드 블록 처리 */
+  .markdown-content blockquote > pre,
+  .markdown-content blockquote .code-block-container {
+    @apply my-3;
+    margin-left: 0;
+  }
+
   /* Inline code */
   .markdown-content code:not(pre code) {
     @apply bg-slate-800/60 text-amber-300 px-1.5 py-0.5 rounded text-sm font-mono;
@@ -117,23 +131,50 @@
     border: 1px solid rgba(148, 163, 184, 0.1);
   }
 
+  /* code-block-container를 감싸는 pre 태그 스타일 제거 */
+  .markdown-content pre:has(.code-block-container),
+  .markdown-content pre:has(> code > .code-block-container) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
   /* Code blocks - SyntaxHighlighter를 사용하지 않는 경우만 */
-  .markdown-content > pre:not(.code-block-wrapper *) {
+  .markdown-content > pre:not(:has(.code-block-container)):not(:has(> code > .code-block-container)) {
     @apply bg-slate-900/80 border border-slate-700/50 p-4 rounded-lg overflow-x-auto my-5;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   }
 
-  .markdown-content > pre:not(.code-block-wrapper *) code {
+  .markdown-content > pre:not(:has(.code-block-container)):not(:has(> code > .code-block-container)) code {
     @apply bg-transparent p-0 text-slate-100;
     font-size: 0.875em;
     line-height: 1.6;
   }
 
+  /* 코드 블록 컨테이너 - 다른 마크다운 요소와 격리 */
+  .code-block-container {
+    @apply my-6;
+    isolation: isolate;
+    position: relative;
+    width: 100%;
+    clear: both;
+    @apply bg-slate-900/90 border border-slate-700/50 rounded-lg overflow-hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  }
+
   /* SyntaxHighlighter가 생성하는 모든 요소 스타일 오버라이드 */
   .code-block-wrapper {
-    @apply my-4;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    position: relative;
+    z-index: 1;
   }
   
   .code-block-wrapper * {
@@ -144,8 +185,31 @@
     background: transparent !important;
   }
   
+  /* 코드 블록 컨테이너 내부의 모든 pre 태그 스타일 제거 */
+  .code-block-container pre,
+  .code-block-container pre *,
+  .code-block-wrapper pre,
+  .code-block-wrapper pre * {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  
   .code-block-wrapper div[class*="language-"] {
     padding: 1rem !important;
+  }
+
+  /* 코드 블록이 리스트나 다른 요소 안에 있을 때도 제대로 표시되도록 */
+  .markdown-content li .code-block-container,
+  .markdown-content p .code-block-container,
+  .markdown-content blockquote .code-block-container {
+    @apply my-4;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 
   .markdown-content blockquote {
