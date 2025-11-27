@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { defaultApi, ragApi, swaggerApi } from '../api/client';
+import { defaultApi, ragApi, swaggerApi, axiosInstance } from '../api/client';
 import { UpdateUserDtoRoleEnum, type UpdateUserDto, type UpdatePageDto, type UpdatePagesDto, type UploadSwaggerDto } from '../api/generated/models';
 
 interface User {
@@ -33,11 +33,19 @@ type TabType = 'users' | 'notion' | 'swagger';
 interface SwaggerDocument {
   id: string;
   key: string;
-  swaggerUrl: string;
+  swaggerUrl?: string;
   createdAt?: string;
   updatedAt?: string;
   apiCount?: number;
+  indexingStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  errorMessage?: string;
   [key: string]: any;
+}
+
+interface SwaggerUploadResponse {
+  documentId: string;
+  key: string;
+  status: string;
 }
 
 // 날짜를 한국 시간(KST)으로 변환하는 함수
@@ -120,11 +128,17 @@ export function Admin() {
   const [swaggerDocuments, setSwaggerDocuments] = useState<SwaggerDocument[]>([]);
   const [swaggerLoading, setSwaggerLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [uploadForm, setUploadForm] = useState<UploadSwaggerDto>({
     key: '',
     swaggerUrl: '',
   });
+  const [fileUploadKey, setFileUploadKey] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('url');
+  const [pollingKey, setPollingKey] = useState<string | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -135,6 +149,17 @@ export function Admin() {
       fetchSwaggerDocuments();
     }
   }, [activeTab]);
+
+  // 컴포넌트 언마운트 시 폴링 정리
+  useEffect(() => {
+    return () => {
+      setPollingKey(null);
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // 사용자 관리 함수들
   const fetchUsers = async () => {
@@ -477,6 +502,169 @@ export function Admin() {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // 파일 확장자 검증
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        setError('JSON 파일만 업로드 가능합니다.');
+        setSelectedFile(null);
+        e.target.value = '';
+        return;
+      }
+      setSelectedFile(file);
+      setError(null);
+    }
+  };
+
+  // 키로 Swagger 문서 상태 조회
+  const getSwaggerDocumentByKey = async (key: string): Promise<SwaggerDocument | null> => {
+    try {
+      const response = await axiosInstance.get(`/swagger/documents/key/${encodeURIComponent(key)}`);
+      return response.data as SwaggerDocument;
+    } catch (err: any) {
+      console.error('문서 상태 조회 실패:', err);
+      return null;
+    }
+  };
+
+  // 폴링으로 처리 상태 확인
+  const pollSwaggerStatus = (key: string, maxAttempts = 60, interval = 2000): void => {
+    let attempts = 0;
+    
+    const poll = async (): Promise<void> => {
+      // 폴링이 취소되었는지 확인
+      if (pollingKey !== key) {
+        return;
+      }
+      
+      attempts++;
+      const doc = await getSwaggerDocumentByKey(key);
+      
+      // 폴링이 취소되었는지 다시 확인
+      if (pollingKey !== key) {
+        return;
+      }
+      
+      if (!doc) {
+        if (attempts >= maxAttempts) {
+          setError('문서 상태를 확인할 수 없습니다. 목록을 새로고침해주세요.');
+          setPollingKey(null);
+          fetchSwaggerDocuments();
+          return;
+        }
+        pollingTimeoutRef.current = setTimeout(poll, interval);
+        return;
+      }
+
+      const status = doc.indexingStatus || 'pending';
+      
+      // 상태 업데이트를 위해 목록 새로고침
+      await fetchSwaggerDocuments();
+
+      // 폴링이 취소되었는지 다시 확인
+      if (pollingKey !== key) {
+        return;
+      }
+
+      if (status === 'completed') {
+        setPollingKey(null);
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
+        }
+        setUpdateResult({
+          show: true,
+          success: true,
+          message: `Swagger 문서 처리가 완료되었습니다. (API ${doc.apiCount || 0}개)`,
+        });
+      } else if (status === 'failed') {
+        setPollingKey(null);
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
+        }
+        const errorMsg = doc.errorMessage || '처리 중 오류가 발생했습니다.';
+        setError(errorMsg);
+        setUpdateResult({
+          show: true,
+          success: false,
+          message: `Swagger 문서 처리 실패: ${errorMsg}`,
+        });
+      } else if (status === 'pending' || status === 'processing') {
+        if (attempts >= maxAttempts) {
+          setPollingKey(null);
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current);
+            pollingTimeoutRef.current = null;
+          }
+          setError('처리 시간이 초과되었습니다. 목록에서 상태를 확인해주세요.');
+          fetchSwaggerDocuments();
+        } else {
+          pollingTimeoutRef.current = setTimeout(poll, interval);
+        }
+      }
+    };
+
+    poll();
+  };
+
+  const handleUploadSwaggerFile = async () => {
+    if (!fileUploadKey || !selectedFile) {
+      setError('키와 JSON 파일을 모두 선택해주세요.');
+      return;
+    }
+
+    try {
+      setUploadingFile(true);
+      setError(null);
+      const response = await swaggerApi.uploadSwaggerFile({
+        key: fileUploadKey,
+        file: selectedFile,
+      });
+      
+      // 응답에서 documentId와 key 추출
+      const responseData = (response.data as any) as SwaggerUploadResponse;
+      const uploadedKey = responseData?.key || fileUploadKey;
+      
+      // 폼 초기화
+      const savedKey = fileUploadKey;
+      setFileUploadKey('');
+      setSelectedFile(null);
+      // 파일 input 초기화
+      const fileInput = document.getElementById('swagger-file-input') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      // 즉시 목록 새로고침
+      await fetchSwaggerDocuments();
+      
+      // 폴링 시작
+      setPollingKey(savedKey);
+      setUpdateResult({
+        show: true,
+        success: true,
+        message: 'Swagger JSON 파일이 업로드되었습니다. 백그라운드에서 처리 중입니다...',
+      });
+      
+      // 폴링 시작
+      pollSwaggerStatus(savedKey);
+    } catch (err: any) {
+      console.error('Swagger 파일 업로드 실패:', err);
+      const errorMessage = err.response?.data?.message || 'Swagger 파일 업로드에 실패했습니다.';
+      setError(errorMessage);
+      
+      setUpdateResult({
+        show: true,
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -875,66 +1063,237 @@ export function Admin() {
         {/* Swagger 관리 탭 */}
         {activeTab === 'swagger' && (
           <div className="space-y-6">
-            {/* 업로드 액션 영역 */}
-            <div className="bg-slate-800 rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Swagger 문서 업로드</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    문서 키 (영어, 숫자, 소문자, 언더스코어만 허용)
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadForm.key}
-                    onChange={(e) =>
-                      setUploadForm({ ...uploadForm, key: e.target.value })
-                    }
-                    placeholder="예: my-api-docs"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-slate-400 mt-1">
-                    같은 키가 이미 존재하면 기존 데이터를 삭제하고 재업로드됩니다.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Swagger JSON URL
-                  </label>
-                  <input
-                    type="url"
-                    value={uploadForm.swaggerUrl}
-                    onChange={(e) =>
-                      setUploadForm({ ...uploadForm, swaggerUrl: e.target.value })
-                    }
-                    placeholder="예: http://localhost:3001/api-json"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-slate-400 mt-1">
-                    Swagger JSON 형식의 OpenAPI 스펙 URL을 입력하세요.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleUploadSwagger}
-                    disabled={uploading || !uploadForm.key || !uploadForm.swaggerUrl}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
-                  >
-                    {uploading ? '업로드 중...' : 'Swagger 문서 업로드'}
-                  </button>
+            {/* 업로드 액션 영역 - 통합 */}
+            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+              <div className="p-6 border-b border-slate-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Swagger 문서 업로드
+                  </h2>
                   <button
                     onClick={fetchSwaggerDocuments}
-                    disabled={swaggerLoading || uploading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    disabled={swaggerLoading || uploading || uploadingFile}
+                    className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
                   >
-                    {swaggerLoading ? '로딩 중...' : '목록 새로고침'}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {swaggerLoading ? '로딩 중...' : '새로고침'}
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">
-                  💡 Swagger 문서를 업로드하면 API 정보가 벡터 DB에 저장되어 RAG 검색에 활용됩니다.
-                </p>
+
+                {/* 업로드 방식 탭 */}
+                <div className="flex gap-2 border-b border-slate-700">
+                  <button
+                    onClick={() => setUploadMethod('url')}
+                    className={`px-4 py-2 font-medium transition-colors relative ${
+                      uploadMethod === 'url'
+                        ? 'text-blue-400'
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      URL로 업로드
+                    </span>
+                    {uploadMethod === 'url' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setUploadMethod('file')}
+                    className={`px-4 py-2 font-medium transition-colors relative ${
+                      uploadMethod === 'file'
+                        ? 'text-blue-400'
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      파일로 업로드
+                    </span>
+                    {uploadMethod === 'file' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* URL 업로드 폼 */}
+                {uploadMethod === 'url' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        문서 키 <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={uploadForm.key}
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, key: e.target.value })
+                        }
+                        placeholder="예: my_api_docs"
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">
+                        영어, 숫자, 소문자, 언더스코어만 허용. 같은 키가 이미 존재하면 기존 데이터를 삭제하고 재업로드됩니다.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Swagger JSON URL <span className="text-red-400">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={uploadForm.swaggerUrl}
+                          onChange={(e) =>
+                            setUploadForm({ ...uploadForm, swaggerUrl: e.target.value })
+                          }
+                          placeholder="예: http://localhost:3001/api-json"
+                          className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <button
+                          onClick={handleUploadSwagger}
+                          disabled={uploading || !uploadForm.key || !uploadForm.swaggerUrl}
+                          className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2 whitespace-nowrap"
+                        >
+                          {uploading ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              업로드 중...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              업로드
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Swagger JSON 형식의 OpenAPI 스펙 URL을 입력하세요.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 파일 업로드 폼 */}
+                {uploadMethod === 'file' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        문서 키 <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={fileUploadKey}
+                        onChange={(e) => setFileUploadKey(e.target.value)}
+                        placeholder="예: my_api_docs"
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">
+                        영어, 숫자, 소문자, 언더스코어만 허용. 같은 키가 이미 존재하면 기존 데이터를 삭제하고 재업로드됩니다.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Swagger JSON 파일 <span className="text-red-400">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="swagger-file-input"
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="swagger-file-input"
+                          className="flex-1 px-4 py-2 bg-slate-700 border-2 border-dashed border-slate-600 rounded-lg text-white cursor-pointer hover:bg-slate-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span className="font-medium">
+                            {selectedFile ? selectedFile.name : 'JSON 파일 선택'}
+                          </span>
+                        </label>
+                        <button
+                          onClick={handleUploadSwaggerFile}
+                          disabled={uploadingFile || !fileUploadKey || !selectedFile}
+                          className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2 whitespace-nowrap"
+                        >
+                          {uploadingFile ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              업로드 중...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              업로드
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      {selectedFile && (
+                        <div className="mt-2 px-3 py-2 bg-blue-900/30 border border-blue-700/50 rounded-lg flex items-center gap-2 text-sm text-blue-300">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          파일이 선택되었습니다: {selectedFile.name}
+                        </div>
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Swagger JSON 형식의 파일만 업로드 가능합니다. (확장자: .json)
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 폴링 중 표시 */}
+                {pollingKey && (
+                  <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg">
+                    <p className="text-xs text-yellow-300 flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>문서 키 &quot;{pollingKey}&quot; 처리 중... 상태를 확인하고 있습니다.</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* 공통 안내 메시지 */}
+                <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                  <p className="text-xs text-blue-300 flex items-start gap-2">
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Swagger 문서를 업로드하면 API 정보가 벡터 DB에 저장되어 RAG 검색에 활용됩니다. 파일 업로드는 백그라운드에서 처리됩니다.</span>
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -942,89 +1301,147 @@ export function Admin() {
             <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
               <div className="p-6 border-b border-slate-700">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Swagger 문서 목록</h2>
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Swagger 문서 목록
+                  </h2>
                   {swaggerDocuments.length > 0 && (
-                    <span className="text-sm text-slate-400">
-                      총 {swaggerDocuments.length}개
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 bg-blue-600/20 text-blue-400 text-sm font-medium rounded-full">
+                        총 {swaggerDocuments.length}개
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
 
               {swaggerLoading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-slate-400">로딩 중...</p>
+                <div className="p-12 text-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-slate-400">문서 목록을 불러오는 중...</p>
                 </div>
               ) : swaggerDocuments.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">
-                  <p className="mb-2">업로드된 Swagger 문서가 없습니다.</p>
-                  <p className="text-sm">위의 폼을 사용하여 Swagger 문서를 업로드하세요.</p>
+                <div className="p-12 text-center">
+                  <svg className="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-slate-400 text-lg mb-2">업로드된 Swagger 문서가 없습니다</p>
+                  <p className="text-sm text-slate-500">위의 폼을 사용하여 Swagger 문서를 업로드하세요.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-700">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          문서 ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          키
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          Swagger URL
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          API 개수
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          생성일
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          작업
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {swaggerDocuments.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-slate-700/50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-400">
-                            {doc.id}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
-                            {doc.key}
-                          </td>
-                          <td className="px-6 py-4 text-sm">
-                            <a
-                              href={doc.swaggerUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors break-all"
-                            >
-                              {doc.swaggerUrl}
-                            </a>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                            {doc.apiCount !== undefined ? doc.apiCount : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                            {formatToKST(doc.createdAt)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <button
-                              onClick={() => handleDeleteSwagger(doc.id)}
-                              disabled={deleting === doc.id}
-                              className="text-red-400 hover:text-red-300 disabled:text-slate-600 transition-colors"
-                              title="이 Swagger 문서를 삭제합니다. 관련된 모든 벡터 데이터가 삭제됩니다."
-                            >
-                              {deleting === doc.id ? '삭제 중...' : '삭제'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="divide-y divide-slate-700">
+                  {swaggerDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-6 hover:bg-slate-700/30 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <div className="px-3 py-1 bg-blue-600/20 text-blue-400 text-sm font-semibold rounded-lg">
+                              {doc.key}
+                            </div>
+                            {doc.indexingStatus && (
+                              <span className={`px-2 py-1 text-xs rounded font-medium ${
+                                doc.indexingStatus === 'completed'
+                                  ? 'bg-green-600/20 text-green-400'
+                                  : doc.indexingStatus === 'failed'
+                                  ? 'bg-red-600/20 text-red-400'
+                                  : doc.indexingStatus === 'processing'
+                                  ? 'bg-yellow-600/20 text-yellow-400'
+                                  : 'bg-slate-700 text-slate-400'
+                              }`}>
+                                {doc.indexingStatus === 'completed' && '✓ 완료'}
+                                {doc.indexingStatus === 'failed' && '✗ 실패'}
+                                {doc.indexingStatus === 'processing' && (
+                                  <>
+                                    <svg className="inline-block w-3 h-3 animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    처리 중
+                                  </>
+                                )}
+                                {doc.indexingStatus === 'pending' && '대기 중'}
+                              </span>
+                            )}
+                            {doc.apiCount !== undefined && doc.indexingStatus === 'completed' && (
+                              <span className="px-2 py-1 bg-slate-700 text-slate-300 text-xs rounded">
+                                API {doc.apiCount}개
+                              </span>
+                            )}
+                          </div>
+                          {doc.indexingStatus === 'failed' && doc.errorMessage && (
+                            <div className="mt-2 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded-lg">
+                              <p className="text-xs text-red-300">{doc.errorMessage}</p>
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <svg className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                              {doc.swaggerUrl ? (
+                                <a
+                                  href={doc.swaggerUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:text-blue-300 hover:underline transition-colors break-all text-sm"
+                                >
+                                  {doc.swaggerUrl}
+                                </a>
+                              ) : (
+                                <span className="text-slate-500 text-sm italic">
+                                  파일로 업로드됨 (URL 없음)
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                              <div className="flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                </svg>
+                                <span className="font-mono text-slate-400">{doc.id}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>{formatToKST(doc.createdAt)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <button
+                            onClick={() => handleDeleteSwagger(doc.id)}
+                            disabled={deleting === doc.id}
+                            className="px-4 py-2 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 disabled:bg-slate-700 disabled:text-slate-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="이 Swagger 문서를 삭제합니다. 관련된 모든 벡터 데이터가 삭제됩니다."
+                          >
+                            {deleting === doc.id ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                삭제 중...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                삭제
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
