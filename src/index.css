@@ -117,16 +117,35 @@
     border: 1px solid rgba(148, 163, 184, 0.1);
   }
 
-  /* Code blocks */
-  .markdown-content pre {
+  /* Code blocks - SyntaxHighlighter를 사용하지 않는 경우만 */
+  .markdown-content > pre:not(.code-block-wrapper *) {
     @apply bg-slate-900/80 border border-slate-700/50 p-4 rounded-lg overflow-x-auto my-5;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   }
 
-  .markdown-content pre code {
+  .markdown-content > pre:not(.code-block-wrapper *) code {
     @apply bg-transparent p-0 text-slate-100;
     font-size: 0.875em;
     line-height: 1.6;
+  }
+
+  /* SyntaxHighlighter가 생성하는 모든 요소 스타일 오버라이드 */
+  .code-block-wrapper {
+    @apply my-4;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  .code-block-wrapper * {
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+  
+  .code-block-wrapper div[class*="language-"] {
+    padding: 1rem !important;
   }
 
   .markdown-content blockquote {
