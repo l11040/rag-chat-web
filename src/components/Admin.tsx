@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { defaultApi, ragApi, swaggerApi, axiosInstance } from '../api/client';
-import { UpdateUserDtoRoleEnum, type UpdateUserDto, type UpdatePageDto, type UpdatePagesDto, type UploadSwaggerDto } from '../api/generated/models';
+import { defaultApi, ragApi, swaggerApi, axiosInstance, projectsApi } from '../api/client';
+import { UpdateUserDtoRoleEnum, type UpdateUserDto, type UpdatePageDto, type UpdatePagesDto, type UploadSwaggerDto, type CreateProjectDto } from '../api/generated/models';
+import { useCreateProject } from '../api/projects';
 
 interface User {
   id: string;
@@ -28,7 +29,7 @@ interface NotionPage {
   [key: string]: any; // 추가 필드 허용
 }
 
-type TabType = 'users' | 'notion' | 'swagger';
+type TabType = 'users' | 'notion' | 'swagger' | 'projects';
 
 interface SwaggerDocument {
   id: string;
@@ -139,6 +140,13 @@ export function Admin() {
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('url');
   const [pollingKey, setPollingKey] = useState<string | null>(null);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 프로젝트 관리 상태
+  const [projectForm, setProjectForm] = useState<CreateProjectDto>({
+    name: '',
+    description: '',
+  });
+  const createProjectMutation = useCreateProject();
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -700,87 +708,99 @@ export function Admin() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* 헤더 */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">관리자 페이지</h1>
-            <p className="text-slate-400">시스템 관리 및 설정</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm text-slate-400">현재 사용자</p>
-              <p className="font-semibold">{user?.email}</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+      {/* 헤더 */}
+      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm">
+        <div className="container mx-auto px-6 py-3">
+          <div className="flex justify-between items-center">
+            <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">관리자 페이지</h1>
+            <div className="flex items-center gap-3">
+              <div className="text-right mr-4 hidden sm:block">
+                <p className="text-xs text-slate-500 dark:text-slate-500 font-medium">현재 사용자</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{user?.email}</p>
+              </div>
+              <button
+                onClick={() => navigate('/')}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
+              >
+                채팅으로
+              </button>
+              <button
+                onClick={logout}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
+              >
+                로그아웃
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-            >
-              채팅으로 돌아가기
-            </button>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-            >
-              로그아웃
-            </button>
           </div>
         </div>
+      </header>
+      
+      <div className="container mx-auto px-6 py-8">
 
         {/* 탭 메뉴 */}
-        <div className="mb-6 border-b border-slate-700">
-          <div className="flex gap-4">
+        <div className="mb-8">
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl inline-flex">
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
                 activeTab === 'users'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               사용자 관리
             </button>
             <button
               onClick={() => setActiveTab('notion')}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
                 activeTab === 'notion'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               노션 관리
             </button>
             <button
               onClick={() => setActiveTab('swagger')}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
                 activeTab === 'swagger'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-slate-300'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               Swagger 관리
+            </button>
+            <button
+              onClick={() => setActiveTab('projects')}
+              className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+                activeTab === 'projects'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              프로젝트 관리
             </button>
           </div>
         </div>
 
         {/* 에러 메시지 */}
         {error && (
-          <div className="mb-4 p-4 bg-red-900/50 border border-red-500 rounded-lg">
-            <p className="text-red-300">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl shadow-sm">
+            <p className="text-red-600 dark:text-red-400 text-sm font-medium">{error}</p>
           </div>
         )}
 
         {/* 사용자 관리 탭 */}
         {activeTab === 'users' && (
-          <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">사용자 목록</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">사용자 목록</h2>
                 <button
                   onClick={fetchUsers}
                   disabled={userLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                 >
                   {userLoading ? '새로고침 중...' : '새로고침'}
                 </button>
@@ -799,32 +819,32 @@ export function Admin() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-slate-700">
+                  <thead className="bg-slate-50 dark:bg-slate-700/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         ID
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         이메일
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         권한
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         생성일
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         작업
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                     {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-700/50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                           {u.id}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100 font-medium">
                           {u.email}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -836,7 +856,7 @@ export function Admin() {
                             {getRoleLabel(u.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                           {u.createdAt
                             ? new Date(u.createdAt).toLocaleDateString('ko-KR')
                             : '-'}
@@ -844,7 +864,7 @@ export function Admin() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
                             onClick={() => handleEdit(u)}
-                            className="text-blue-400 hover:text-blue-300 transition-colors"
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors font-medium"
                           >
                             수정
                           </button>
@@ -862,7 +882,7 @@ export function Admin() {
         {activeTab === 'notion' && (
           <div className="space-y-6">
             {/* 액션 버튼 영역 */}
-            <div className="bg-slate-800 rounded-lg shadow-lg p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
               <h2 className="text-xl font-semibold mb-4">노션 페이지 관리</h2>
               
               <div className="space-y-4">
@@ -884,7 +904,7 @@ export function Admin() {
                     <button
                       onClick={handleSyncPages}
                       disabled={syncing || updating !== null}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      className="px-4 py-2 text-sm font-medium bg-green-500 hover:bg-green-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                       title="Notion에서 페이지 목록을 가져와 메타데이터만 DB에 저장합니다. 벡터 DB에는 업데이트하지 않습니다."
                     >
                       {syncing ? '동기화 중...' : 'Notion 목록 가져오기'}
@@ -892,14 +912,14 @@ export function Admin() {
                     <button
                       onClick={fetchPages}
                       disabled={pageLoading || updating !== null}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                     >
                       {pageLoading ? '로딩 중...' : '목록 새로고침'}
                     </button>
                     <button
                       onClick={handleUpdateAll}
                       disabled={updating !== null}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      className="px-4 py-2 text-sm font-medium bg-purple-500 hover:bg-purple-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                       title="모든 페이지를 벡터 DB에 업데이트합니다."
                     >
                       {updating === 'all' ? '업데이트 중...' : '전체 벡터 DB 업데이트'}
@@ -908,7 +928,7 @@ export function Admin() {
                       <button
                         onClick={handleUpdatePages}
                         disabled={updating !== null}
-                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-medium bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                         title="선택한 페이지들을 벡터 DB에 업데이트합니다."
                       >
                         {updating === 'batch' ? '업데이트 중...' : `선택한 ${selectedPages.size}개 벡터 DB 업데이트`}
@@ -931,15 +951,15 @@ export function Admin() {
             </div>
 
             {/* 페이지 목록 */}
-            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-              <div className="p-6 border-b border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-semibold">페이지 목록</h2>
                   {pages.length > 0 && (
                     <button
                       onClick={toggleSelectAll}
                       disabled={updating !== null}
-                      className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
+                      className="px-4 py-2 text-sm font-medium bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50 text-slate-700 dark:text-slate-200 rounded-xl transition-all duration-200"
                     >
                       {selectedPages.size === pages.length ? '전체 해제' : '전체 선택'}
                     </button>
@@ -960,39 +980,39 @@ export function Admin() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-700">
+                    <thead className="bg-slate-50 dark:bg-slate-700/50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          <input
-                            type="checkbox"
-                            checked={selectedPages.size === pages.length && pages.length > 0}
-                            onChange={toggleSelectAll}
-                            disabled={updating !== null}
-                            className="rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          페이지 ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          제목
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          데이터베이스 ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          벡터 DB 업데이트
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                          작업
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {pages.map((page) => {
-                        const currentPageId = String(page.pageId || page.id);
-                        return (
-                        <tr key={page.id || page.pageId} className="hover:bg-slate-700/50">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={selectedPages.size === pages.length && pages.length > 0}
+                          onChange={toggleSelectAll}
+                          disabled={updating !== null}
+                          className="rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        페이지 ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        제목
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        데이터베이스 ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        벡터 DB 업데이트
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        작업
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {pages.map((page) => {
+                      const currentPageId = String(page.pageId || page.id);
+                      return (
+                        <tr key={page.id || page.pageId} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <input
                               type="checkbox"
@@ -1002,32 +1022,32 @@ export function Admin() {
                               className="rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-600 dark:text-slate-300">
                             <a
                               href={getNotionPageUrl(page)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {page.pageId || page.id}
                             </a>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
                             <a
                               href={getNotionPageUrl(page)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors font-medium"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {page.title || '-'}
                             </a>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 font-mono">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-mono">
                             {page.databaseId || '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                             {formatToKST(
                               // 벡터 DB 업데이트 날짜를 우선적으로 표시
                               page.updatedAt || 
@@ -1043,7 +1063,7 @@ export function Admin() {
                             <button
                               onClick={() => handleUpdatePage(currentPageId)}
                               disabled={updating !== null}
-                              className="text-blue-400 hover:text-blue-300 disabled:text-slate-600 transition-colors"
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:text-slate-400 dark:disabled:text-slate-600 transition-colors font-medium"
                               title="이 페이지를 벡터 DB에 업데이트합니다."
                             >
                               {updating === currentPageId ? '업데이트 중...' : '벡터 DB 업데이트'}
@@ -1064,11 +1084,11 @@ export function Admin() {
         {activeTab === 'swagger' && (
           <div className="space-y-6">
             {/* 업로드 액션 영역 - 통합 */}
-            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-              <div className="p-6 border-b border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     Swagger 문서 업로드
@@ -1076,7 +1096,7 @@ export function Admin() {
                   <button
                     onClick={fetchSwaggerDocuments}
                     disabled={swaggerLoading || uploading || uploadingFile}
-                    className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2 text-sm font-medium bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1086,13 +1106,13 @@ export function Admin() {
                 </div>
 
                 {/* 업로드 방식 탭 */}
-                <div className="flex gap-2 border-b border-slate-700">
+                <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
                   <button
                     onClick={() => setUploadMethod('url')}
-                    className={`px-4 py-2 font-medium transition-colors relative ${
+                    className={`px-4 py-2 text-sm font-medium transition-all duration-200 relative rounded-t-lg ${
                       uploadMethod === 'url'
-                        ? 'text-blue-400'
-                        : 'text-slate-400 hover:text-slate-300'
+                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     <span className="flex items-center gap-2">
@@ -1102,15 +1122,15 @@ export function Admin() {
                       URL로 업로드
                     </span>
                     {uploadMethod === 'url' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full"></div>
                     )}
                   </button>
                   <button
                     onClick={() => setUploadMethod('file')}
-                    className={`px-4 py-2 font-medium transition-colors relative ${
+                    className={`px-4 py-2 text-sm font-medium transition-all duration-200 relative rounded-t-lg ${
                       uploadMethod === 'file'
-                        ? 'text-blue-400'
-                        : 'text-slate-400 hover:text-slate-300'
+                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     <span className="flex items-center gap-2">
@@ -1120,7 +1140,7 @@ export function Admin() {
                       파일로 업로드
                     </span>
                     {uploadMethod === 'file' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t-full"></div>
                     )}
                   </button>
                 </div>
@@ -1165,7 +1185,7 @@ export function Admin() {
                         <button
                           onClick={handleUploadSwagger}
                           disabled={uploading || !uploadForm.key || !uploadForm.swaggerUrl}
-                          className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2 whitespace-nowrap"
+                          className="px-6 py-2 text-sm font-medium bg-green-500 hover:bg-green-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none flex items-center gap-2 whitespace-nowrap"
                         >
                           {uploading ? (
                             <>
@@ -1237,7 +1257,7 @@ export function Admin() {
                         <button
                           onClick={handleUploadSwaggerFile}
                           disabled={uploadingFile || !fileUploadKey || !selectedFile}
-                          className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2 whitespace-nowrap"
+                          className="px-6 py-2 text-sm font-medium bg-green-500 hover:bg-green-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none flex items-center gap-2 whitespace-nowrap"
                         >
                           {uploadingFile ? (
                             <>
@@ -1298,11 +1318,11 @@ export function Admin() {
             </div>
 
             {/* Swagger 문서 목록 */}
-            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-              <div className="p-6 border-b border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Swagger 문서 목록
@@ -1331,11 +1351,11 @@ export function Admin() {
                   <p className="text-sm text-slate-500">위의 폼을 사용하여 Swagger 문서를 업로드하세요.</p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-700">
+                <div className="divide-y divide-slate-200 dark:divide-slate-700">
                   {swaggerDocuments.map((doc) => (
                     <div
                       key={doc.id}
-                      className="p-6 hover:bg-slate-700/30 transition-colors"
+                      className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
@@ -1418,7 +1438,7 @@ export function Admin() {
                           <button
                             onClick={() => handleDeleteSwagger(doc.id)}
                             disabled={deleting === doc.id}
-                            className="px-4 py-2 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 disabled:bg-slate-700 disabled:text-slate-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="px-4 py-2 text-sm font-medium bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-600 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
                             title="이 Swagger 문서를 삭제합니다. 관련된 모든 벡터 데이터가 삭제됩니다."
                           >
                             {deleting === doc.id ? (
@@ -1448,10 +1468,94 @@ export function Admin() {
           </div>
         )}
 
+        {/* 프로젝트 관리 탭 */}
+        {activeTab === 'projects' && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <h2 className="text-lg font-semibold mb-6 text-slate-900 dark:text-slate-100">프로젝트 생성</h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  setError(null);
+                  await createProjectMutation.mutateAsync(projectForm);
+                  setProjectForm({ name: '', description: '' });
+                  setUpdateResult({
+                    show: true,
+                    success: true,
+                    message: '프로젝트가 성공적으로 생성되었습니다.',
+                  });
+                } catch (err: any) {
+                  console.error('프로젝트 생성 실패:', err);
+                  const errorMessage = err.response?.data?.message || '프로젝트 생성에 실패했습니다.';
+                  setError(errorMessage);
+                  setUpdateResult({
+                    show: true,
+                    success: false,
+                    message: errorMessage,
+                  });
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  프로젝트 이름 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={projectForm.name}
+                  onChange={(e) =>
+                    setProjectForm({ ...projectForm, name: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="프로젝트 이름을 입력하세요"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  프로젝트 설명
+                </label>
+                <textarea
+                  value={projectForm.description || ''}
+                  onChange={(e) =>
+                    setProjectForm({ ...projectForm, description: e.target.value })
+                  }
+                  rows={4}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="프로젝트 설명을 입력하세요 (선택사항)"
+                />
+              </div>
+              <div className="flex justify-end gap-4">
+                <button
+                  type="button"
+                  onClick={() => setProjectForm({ name: '', description: '' })}
+                  className="px-6 py-2 text-sm font-medium bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  초기화
+                </button>
+                <button
+                  type="submit"
+                  disabled={createProjectMutation.isPending || !projectForm.name}
+                  className="px-6 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
+                >
+                  {createProjectMutation.isPending ? '생성 중...' : '프로젝트 생성'}
+                </button>
+              </div>
+            </form>
+            <div className="mt-6 p-4 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+              <p className="text-sm text-blue-300">
+                💡 프로젝트를 생성하면 생성자가 자동으로 프로젝트 관리자로 추가됩니다. 
+                프로젝트 상세 관리는 설정 페이지에서 할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 업데이트 결과 모달 */}
         {updateResult?.show && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-4 mb-4">
                 {updateResult.success ? (
                   <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
@@ -1485,7 +1589,7 @@ export function Admin() {
               <div className="flex justify-end">
                 <button
                   onClick={() => setUpdateResult(null)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  className="px-6 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   확인
                 </button>
@@ -1496,9 +1600,9 @@ export function Admin() {
 
         {/* 사용자 수정 모달 */}
         {editingUser && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-              <h3 className="text-xl font-semibold mb-4">사용자 정보 수정</h3>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">사용자 정보 수정</h3>
 
               <div className="space-y-4">
                 <div>
@@ -1541,7 +1645,7 @@ export function Admin() {
                         role: e.target.value as UpdateUserDtoRoleEnum,
                       })
                     }
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-500"
                   >
                     <option value="">권한 선택</option>
                     <option value={UpdateUserDtoRoleEnum.user}>사용자</option>
@@ -1559,13 +1663,13 @@ export function Admin() {
               <div className="flex gap-4 mt-6">
                 <button
                   onClick={handleUpdateUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   저장
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-700 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   취소
                 </button>

@@ -12,9 +12,10 @@ import type { Message } from '../types/api';
 interface ChatProps {
   conversationId: string | null;
   onConversationCreated?: (id: string) => void;
+  projectId?: string | null;
 }
 
-export function Chat({ conversationId, onConversationCreated }: ChatProps) {
+export function Chat({ conversationId, onConversationCreated, projectId }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId);
   const { user, logout, isAdmin } = useAuth();
@@ -356,18 +357,32 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
     const conversationHistory = buildConversationHistory(messages);
     
     if (queryType === 'swagger') {
-      // Swagger API 호출
+      // Swagger API 호출 (projectId는 Swagger 쿼리에서 지원하지 않을 수 있음)
       if (currentConversationId) {
-        swaggerMutation.mutate({ question, conversationId: currentConversationId });
+        swaggerMutation.mutate({ 
+          question, 
+          conversationId: currentConversationId 
+        });
       } else {
-        swaggerMutation.mutate({ question, conversationHistory });
+        swaggerMutation.mutate({ 
+          question, 
+          conversationHistory 
+        });
       }
     } else {
-      // RAG API 호출
+      // RAG API 호출 (projectId 포함)
       if (currentConversationId) {
-        ragMutation.mutate({ question, conversationId: currentConversationId });
+        ragMutation.mutate({ 
+          question, 
+          projectId: projectId || undefined,
+          conversationId: currentConversationId 
+        });
       } else {
-        ragMutation.mutate({ question, conversationHistory });
+        ragMutation.mutate({ 
+          question, 
+          projectId: projectId || undefined,
+          conversationHistory 
+        });
       }
     }
   };
@@ -382,20 +397,20 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="fixed top-0 left-64 right-0 bg-slate-800/40 backdrop-blur-sm border-b border-slate-800/50 px-4 py-2.5 z-20">
+      <header className="fixed top-0 left-64 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-3 z-20 shadow-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            RAG Chat Web
+          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            RAG Chat
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {user && (
-              <span className="text-slate-300 text-xs">
+              <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                 {user.email}
               </span>
             )}
             <button
               onClick={() => navigate('/management')}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition"
+              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
               title="관리 페이지"
             >
               <svg
@@ -421,21 +436,21 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
             {isAdmin && (
               <button
                 onClick={() => navigate('/admin')}
-                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                className="px-3 py-1.5 text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                관리자 페이지
+                관리자
               </button>
             )}
             <button
               onClick={handleLogout}
-              className="px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition"
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
             >
               로그아웃
             </button>
           </div>
         </div>
       </header>
-      <main className="flex flex-col max-w-5xl w-full mx-auto py-4 px-4 pt-16 pb-32">
+      <main className="flex flex-col max-w-5xl w-full mx-auto py-6 px-6 pt-20 pb-32">
         {isLoadingConversation ? (
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
@@ -448,13 +463,13 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
             {messages.length === 0 ? (
               <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="text-center">
-                  <div className="text-6xl mb-4">💬</div>
-                  <p className="text-slate-400 text-lg font-medium">질문을 입력하여 시작하세요</p>
-                  <p className="text-slate-500 text-sm mt-2">RAG 기반 지식 검색 챗봇</p>
+                  <div className="text-5xl mb-6">💬</div>
+                  <p className="text-slate-600 dark:text-slate-300 text-lg font-semibold mb-2">질문을 입력하여 시작하세요</p>
+                  <p className="text-slate-500 dark:text-slate-500 text-sm">RAG 기반 지식 검색 챗봇</p>
                 </div>
               </div>
             ) : (
-              <div ref={messagesContainerRef} className="space-y-6">
+              <div ref={messagesContainerRef} className="space-y-8">
                 {messages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
@@ -464,8 +479,8 @@ export function Chat({ conversationId, onConversationCreated }: ChatProps) {
           </>
         )}
       </main>
-      <div className="fixed bottom-0 left-64 right-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-2">
+      <div className="fixed bottom-0 left-64 right-0 z-10 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent pt-8 pb-4">
+        <div className="max-w-5xl mx-auto px-6">
           <ChatInput onSend={handleSend} isLoading={ragMutation.isPending || swaggerMutation.isPending} />
         </div>
       </div>

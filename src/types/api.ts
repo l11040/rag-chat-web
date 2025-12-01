@@ -18,6 +18,7 @@ export interface ConversationMessage {
 
 export interface RAGQueryRequest {
   question: string;
+  projectId?: string;
   conversationId?: string;
   conversationHistory?: ConversationMessage[];
 }
@@ -44,6 +45,7 @@ export interface SwaggerSource {
 
 export interface SwaggerQueryRequest {
   question: string;
+  projectId?: string;
   conversationId?: string;
   conversationHistory?: ConversationMessage[];
   swaggerKey?: string;

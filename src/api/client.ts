@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
-import { Configuration } from './generated';
+import { Configuration, ProjectsApi } from './generated';
 import { RAGApi, DefaultApi, AppApi, NotionApi, OpenaiApi, ConversationApi, SwaggerApi } from './generated';
 import type { RefreshTokenDto } from './generated/models';
 
@@ -8,6 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'accessToken',
   REFRESH_TOKEN: 'refreshToken',
+  PROJECT_ID: 'selectedProjectId',
 } as const;
 
 // 토큰 갱신 중인지 추적 (중복 요청 방지)
@@ -172,3 +173,4 @@ export const notionApi = new NotionApi(configuration, API_BASE_URL, axiosInstanc
 export const openaiApi = new OpenaiApi(configuration, API_BASE_URL, axiosInstance);
 export const conversationApi = new ConversationApi(configuration, API_BASE_URL, axiosInstance);
 export const swaggerApi = new SwaggerApi(configuration, API_BASE_URL, axiosInstance);
+export const projectsApi = new ProjectsApi(configuration, API_BASE_URL, axiosInstance);

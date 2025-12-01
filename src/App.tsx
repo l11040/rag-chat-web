@@ -10,10 +10,18 @@ import { Admin } from './components/Admin';
 import { Management } from './components/Management';
 import { ConversationSidebar } from './components/ConversationSidebar';
 
+const STORAGE_KEYS = {
+  PROJECT_ID: 'selectedProjectId',
+} as const;
+
 function ChatLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationIdFromUrl = searchParams.get('conversation');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(conversationIdFromUrl);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    // 초기값을 로컬 스토리지에서 가져오기
+    return localStorage.getItem(STORAGE_KEYS.PROJECT_ID);
+  });
 
   // URL의 conversation 파라미터가 변경되면 상태 업데이트
   useEffect(() => {
@@ -22,16 +30,30 @@ function ChatLayout() {
 
   const handleSelectConversation = (id: string | null) => {
     setSelectedConversationId(id);
+    const params = new URLSearchParams(searchParams);
     if (id) {
-      setSearchParams({ conversation: id });
+      params.set('conversation', id);
     } else {
-      setSearchParams({});
+      params.delete('conversation');
+    }
+    setSearchParams(params);
+  };
+
+  const handleSelectProject = (id: string | null) => {
+    setSelectedProjectId(id);
+    // 로컬 스토리지에 저장
+    if (id) {
+      localStorage.setItem(STORAGE_KEYS.PROJECT_ID, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.PROJECT_ID);
     }
   };
 
   const handleConversationCreated = (id: string) => {
     setSelectedConversationId(id);
-    setSearchParams({ conversation: id });
+    const params = new URLSearchParams(searchParams);
+    params.set('conversation', id);
+    setSearchParams(params);
   };
 
   return (
@@ -40,12 +62,15 @@ function ChatLayout() {
         <ConversationSidebar
           selectedConversationId={selectedConversationId}
           onSelectConversation={handleSelectConversation}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={handleSelectProject}
         />
       </div>
       <div className="ml-64">
         <Chat 
           conversationId={selectedConversationId} 
           onConversationCreated={handleConversationCreated}
+          projectId={selectedProjectId}
         />
       </div>
     </>

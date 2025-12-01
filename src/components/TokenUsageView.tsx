@@ -48,39 +48,37 @@ export function TokenUsageView() {
   return (
     <div className="space-y-6">
       {/* 뷰 타입 선택 탭 */}
-      <div className="bg-slate-800 rounded-lg p-4">
-        <div className="flex gap-2 border-b border-slate-700">
-          <button
-            onClick={() => setViewType('overview')}
-            className={`px-4 py-2 font-medium transition-colors ${
-              viewType === 'overview'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-slate-400 hover:text-slate-300'
-            }`}
-          >
-            개요
-          </button>
-          <button
-            onClick={() => setViewType('list')}
-            className={`px-4 py-2 font-medium transition-colors ${
-              viewType === 'list'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-slate-400 hover:text-slate-300'
-            }`}
-          >
-            목록
-          </button>
-          <button
-            onClick={() => setViewType('date-range')}
-            className={`px-4 py-2 font-medium transition-colors ${
-              viewType === 'date-range'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-slate-400 hover:text-slate-300'
-            }`}
-          >
-            기간별 조회
-          </button>
-        </div>
+      <div className="flex gap-2 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl inline-flex">
+        <button
+          onClick={() => setViewType('overview')}
+          className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+            viewType === 'overview'
+              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          개요
+        </button>
+        <button
+          onClick={() => setViewType('list')}
+          className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+            viewType === 'list'
+              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          목록
+        </button>
+        <button
+          onClick={() => setViewType('date-range')}
+          className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+            viewType === 'date-range'
+              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          기간별 조회
+        </button>
       </div>
 
       {/* 개요 뷰 */}
@@ -88,8 +86,8 @@ export function TokenUsageView() {
         <div className="space-y-6">
           {/* 에러 메시지 */}
           {statsError && (
-            <div className="bg-red-900/50 border border-red-500 rounded-lg p-4">
-              <p className="text-red-300">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 shadow-sm">
+              <p className="text-red-600 dark:text-red-400 text-sm font-medium">
                 통계 데이터를 불러오는데 실패했습니다: {statsError instanceof Error ? statsError.message : '알 수 없는 오류'}
               </p>
             </div>
@@ -102,37 +100,37 @@ export function TokenUsageView() {
             </div>
           ) : stats ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-800 rounded-lg p-6">
-                <div className="text-slate-400 text-sm mb-2">총 프롬프트 토큰</div>
-                <div className="text-2xl font-bold text-blue-400">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <div className="text-slate-500 dark:text-slate-400 text-sm mb-2 font-medium">총 프롬프트 토큰</div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {(stats.totalPromptTokens ?? 0).toLocaleString()}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-lg p-6">
-                <div className="text-slate-400 text-sm mb-2">총 완성 토큰</div>
-                <div className="text-2xl font-bold text-green-400">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <div className="text-slate-500 dark:text-slate-400 text-sm mb-2 font-medium">총 완성 토큰</div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {(stats.totalCompletionTokens ?? 0).toLocaleString()}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-lg p-6">
-                <div className="text-slate-400 text-sm mb-2">전체 토큰 수</div>
-                <div className="text-2xl font-bold text-purple-400">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <div className="text-slate-500 dark:text-slate-400 text-sm mb-2 font-medium">전체 토큰 수</div>
+                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                   {(stats.totalTokens ?? 0).toLocaleString()}
                 </div>
               </div>
-              <div className="bg-slate-800 rounded-lg p-6">
-                <div className="text-slate-400 text-sm mb-2">사용 횟수</div>
-                <div className="text-2xl font-bold text-yellow-400">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                <div className="text-slate-500 dark:text-slate-400 text-sm mb-2 font-medium">사용 횟수</div>
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                   {(stats.usageCount ?? 0).toLocaleString()}
                 </div>
-                <div className="text-slate-400 text-sm mt-2">
+                <div className="text-slate-500 dark:text-slate-400 text-sm mt-2">
                   평균: {Math.round(stats.averageTokens ?? 0).toLocaleString()} 토큰
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-slate-800 rounded-lg p-8 text-center">
-              <p className="text-slate-400">통계 데이터를 불러올 수 없습니다.</p>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center shadow-sm border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400">통계 데이터를 불러올 수 없습니다.</p>
             </div>
           )}
 
@@ -161,10 +159,10 @@ export function TokenUsageView() {
       {/* 기간별 조회 뷰 */}
       {viewType === 'date-range' && (
         <div className="space-y-4">
-          <div className="bg-slate-800 rounded-lg p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex gap-4 items-end">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   시작일
                 </label>
                 <input
@@ -173,11 +171,11 @@ export function TokenUsageView() {
                   onChange={(e) =>
                     setDateRange({ ...dateRange, startDate: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   종료일
                 </label>
                 <input
@@ -186,7 +184,7 @@ export function TokenUsageView() {
                   onChange={(e) =>
                     setDateRange({ ...dateRange, endDate: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
                 />
               </div>
             </div>

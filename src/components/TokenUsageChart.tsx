@@ -223,13 +223,13 @@ export function TokenUsageChart({ stats }: TokenUsageChartProps) {
   }, [stats]);
 
   return (
-    <div className="bg-slate-800 rounded-lg p-6 relative">
-      <h3 className="text-xl font-semibold mb-6 text-slate-200">토큰 사용량 비교</h3>
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 relative shadow-sm border border-slate-200 dark:border-slate-700">
+      <h3 className="text-lg font-semibold mb-6 text-slate-900 dark:text-slate-100">토큰 사용량 비교</h3>
       <div className="flex justify-center relative">
         <svg ref={svgRef} width={800} height={450}></svg>
         <div
           ref={tooltipRef}
-          className="absolute pointer-events-none bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 shadow-xl z-10 transition-opacity"
+          className="absolute pointer-events-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-xl z-10 transition-opacity"
           style={{ opacity: 0 }}
         ></div>
       </div>

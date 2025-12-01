@@ -283,21 +283,21 @@ export function TokenUsageTimeChart({ data }: TokenUsageTimeChartProps) {
 
   if (!safeData || safeData.length === 0) {
     return (
-      <div className="bg-slate-800 rounded-lg p-6">
-        <h3 className="text-xl font-semibold mb-4">시간별 토큰 사용량</h3>
-        <div className="text-center text-slate-400 py-8">데이터가 없습니다.</div>
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">시간별 토큰 사용량</h3>
+        <div className="text-center text-slate-500 dark:text-slate-400 py-8">데이터가 없습니다.</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg p-6 relative">
-      <h3 className="text-xl font-semibold mb-6 text-slate-200">시간별 토큰 사용량</h3>
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 relative shadow-sm border border-slate-200 dark:border-slate-700">
+      <h3 className="text-lg font-semibold mb-6 text-slate-900 dark:text-slate-100">시간별 토큰 사용량</h3>
       <div className="flex justify-center overflow-x-auto relative">
         <svg ref={svgRef} width={1000} height={450}></svg>
         <div
           ref={tooltipRef}
-          className="absolute pointer-events-none bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 shadow-xl z-10 transition-opacity min-w-[200px]"
+          className="absolute pointer-events-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 shadow-xl z-10 transition-opacity min-w-[200px]"
           style={{ opacity: 0 }}
         ></div>
       </div>
